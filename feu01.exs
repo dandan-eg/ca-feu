@@ -34,23 +34,23 @@ defmodule Lexer do
 end
 
 defmodule Interpreter do
-  def eval([{:integer, left}, operation, {:integer, right}, :eof]) do
-    case operation do
-      :+ ->
-        left + right
-
-      :- ->
-        left - right
-
-      :/ ->
-        left / right
-
-      :* ->
-        left * right
-    end
+  def eval([
+        {:integer, first},
+        first_operation,
+        {:integer, second},
+        second_operation,
+        {:integer, third},
+        :eof
+      ]) do
+    calculate(calculate(first, first_operation, second), second_operation, third)
   end
+
+  defp calculate(a, :+, b), do: a + b
+  defp calculate(a, :-, b), do: a - b
+  defp calculate(a, :*, b), do: a * b
+  defp calculate(a, :/, b), do: a / b
 end
 
-{:ok, tokens} = Lexer.lex("100   * 23")
+{:ok, tokens} = Lexer.lex("100   * 23 * 23")
 result = Interpreter.eval(tokens)
 IO.puts(result)
