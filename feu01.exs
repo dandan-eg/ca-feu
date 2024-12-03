@@ -18,6 +18,8 @@ defmodule Lexer do
 
   defp lex(<<"+", remaining::binary>>, tokens), do: lex(remaining, [:+ | tokens])
   defp lex(<<"-", remaining::binary>>, tokens), do: lex(remaining, [:- | tokens])
+  defp lex(<<"*", remaining::binary>>, tokens), do: lex(remaining, [:* | tokens])
+  defp lex(<<"/", remaining::binary>>, tokens), do: lex(remaining, [:/ | tokens])
   defp lex(<<>>, tokens), do: {:ok, Enum.reverse([:eof | tokens])}
 
   defp integer(<<char, remaining::binary>>, acc) when is_numeric(char) do
@@ -32,26 +34,23 @@ defmodule Lexer do
 end
 
 defmodule Interpreter do
-  def eval(tokens) do
-    Enum.reduce(tokens, nil, fn
-      token, nil ->
-        token
-
-      operation, {:integer, left} ->
-        {operation, [left, nil]} |> IO.inspect()
-
-      {:integer, rigth}, {operation, [left, nil]} ->
-        {operation, [left, rigth]} |> IO.inspect()
-
-      :eof, {:+, [left, right]} ->
+  def eval([{:integer, left}, operation, {:integer, right}, :eof]) do
+    case operation do
+      :+ ->
         left + right
 
-      :eof, {:-, [left, right]} ->
+      :- ->
         left - right
-    end)
+
+      :/ ->
+        left / right
+
+      :* ->
+        left * right
+    end
   end
 end
 
-{:ok, tokens} = Lexer.lex("100   + 23")
+{:ok, tokens} = Lexer.lex("100   * 23")
 result = Interpreter.eval(tokens)
 IO.puts(result)
