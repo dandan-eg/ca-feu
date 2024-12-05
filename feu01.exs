@@ -22,21 +22,14 @@ defmodule Lexer do
     lex(remaining, [{:integer, int} | tokens])
   end
 
-  defp lex(<<sign, char, _::binary>> = binary, tokens)
-       when sign in [?-, ?+] and is_numeric(char) do
-    {int, remaining} =
-      integer(
-        binary_slice(binary, 1..byte_size(binary)),
-        0
-      )
+  defp lex(<<"-", char, _::binary>> = binary, tokens) when is_numeric(char) do
+    {int, remaining} = integer(binary_slice(binary, 1..byte_size(binary)), 0)
+    lex(remaining, [{:integer, -int} | tokens])
+  end
 
-    case sign do
-      ?- ->
-        lex(remaining, [{:integer, -int} | tokens])
-
-      ?+ ->
-        lex(remaining, [{:integer, int} | tokens])
-    end
+  defp lex(<<"+", char, _::binary>> = binary, tokens) when is_numeric(char) do
+    {int, remaining} = integer(binary_slice(binary, 1..byte_size(binary)), 0)
+    lex(remaining, [{:integer, -int} | tokens])
   end
 
   # Operations: 
@@ -64,10 +57,12 @@ defmodule Interpreter do
   def term!([lexem | _remaning]),
     do: raise(ArgumentError, message: "invalid lexem #{inspect(lexem)}")
 
-  def eval(tokens) do
-    {acc, remaining} = term!(tokens)
-
-    eval_loop(remaining, acc)
+  def eval(raw) do
+    case Lexer.lex(raw) do
+      {:ok, tokens} ->
+        {acc, remaining} = term!(tokens)
+        eval_loop(remaining, acc)
+    end
   end
 
   defp eval_loop([:eof], acc), do: acc
