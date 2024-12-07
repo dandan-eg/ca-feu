@@ -88,26 +88,20 @@ defmodule Lexer do
 end
 
 defmodule Parser do
-  def factor([{:integer, int} | tokens]), do: {int, tokens}
-
-  def factor([:open_parenthesis | tokens]) do
-    {base, remaining_tokens} = factor(tokens)
-
-    calculate_until(:close_parenthesis, remaining_tokens, base)
-  end
-
   def parse(tokens) do
-    {base, remaining_tokens} = factor(tokens)
-    do_parse(remaining_tokens, base)
+    case term(tokens) do
+      {:ok, base, remaining_tokens} ->
+        do_parse(remaining_tokens, base)
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
-  def do_parse([:eof], acc), do: {:ok, acc}
-
-  def do_parse([operation | tokens], acc) do
-    {other, remaining_tokens} = factor(tokens)
-
-    case calculate(acc, operation, other) do
-      {:ok, result} ->
+  defp do_parse([op | tokens], acc) when op in [:plus, :minus] do
+    case term(tokens) do
+      {:ok, int, remaining_tokens} ->
+        result = calculate(acc, op, int)
         do_parse(remaining_tokens, result)
 
       {:error, _reason} = error ->
@@ -115,27 +109,46 @@ defmodule Parser do
     end
   end
 
-  defp calculate(a, :plus, b), do: {:ok, a + b}
-  defp calculate(a, :minus, b), do: {:ok, a - b}
-  defp calculate(_a, unknown, _b), do: {:error, {:unknown_op, unknown}}
+  defp do_parse([:eof], acc), do: acc
 
-  def calculate_until(expected_token, [expected_token | tokens], acc),
-    do: {acc, tokens} |> IO.inspect()
+  defp term(tokens) do
+    case factor(tokens) do
+      {:ok, base, remaining_tokens} ->
+        do_term(remaining_tokens, base)
 
-  def calculate_until(expected_token, [operation | tokens], acc) do
-    {other, remaining_tokens} = factor(tokens)
-
-    case calculate(acc, operation, other) do
-      {:ok, result} ->
-        calculate_until(expected_token, remaining_tokens, result)
-
-      _ ->
-        raise "boo"
+      {:error, _reason} = error ->
+        error
     end
   end
+
+  defp do_term([op | tokens], acc) when op in [:div, :mod, :mul] do
+    case factor(tokens) do
+      {:ok, int, remaining_tokens} ->
+        result = calculate(acc, op, int)
+        do_term(remaining_tokens, result)
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp do_term(tokens, acc), do: {:ok, acc, tokens}
+
+  defp factor([{:integer, int} | remaining_tokens]) do
+    {:ok, int, remaining_tokens}
+  end
+
+  defp factor([:eof]), do: {:error, :incomplete}
+  defp factor([token | _]), do: {:error, {:unexpected, token}}
+
+  defp calculate(a, :plus, b), do: a + b
+  defp calculate(a, :minus, b), do: a - b
+  defp calculate(a, :mul, b), do: a * b
+  defp calculate(a, :mod, b), do: rem(a, b)
+  defp calculate(a, :div, b), do: round(a / b)
 end
 
-case Lexer.lex("1 + (1 1 - -2)") do
+case Lexer.lex("1 + 2 * 5 * 2 +") do
   {:ok, tokens} ->
     parsed = Parser.parse(tokens)
     IO.inspect(parsed)
