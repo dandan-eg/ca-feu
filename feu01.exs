@@ -91,12 +91,18 @@ defmodule Parser do
   def parse(tokens) do
     case term(tokens) do
       {:ok, base, remaining_tokens} ->
-        do_parse(remaining_tokens, base)
+        case do_parse(remaining_tokens, base) do
+          {:ok, acc, []} = ok ->
+            ok
+        end
 
       {:error, _reason} = error ->
         error
     end
   end
+
+  defp do_parse([:eof], acc), do: {:ok, acc, []}
+  defp do_parse([:close_parenthesis | _] = tokens, acc), do: {:ok, acc, tokens}
 
   defp do_parse([op | tokens], acc) when op in [:plus, :minus] do
     case term(tokens) do
@@ -108,8 +114,6 @@ defmodule Parser do
         error
     end
   end
-
-  defp do_parse([:eof], acc), do: acc
 
   defp term(tokens) do
     case factor(tokens) do
@@ -139,6 +143,20 @@ defmodule Parser do
   end
 
   defp factor([:eof]), do: {:error, :incomplete}
+
+  defp factor([:open_parenthesis | tokens]) do
+    case parse(tokens) do
+      {:ok, acc, [:close_parenthesis | remaning_tokens]} ->
+        {:ok, acc, remaning_tokens}
+
+      {:ok, _acc, _tokens} ->
+        {:error, :missing_closing_parenthesis}
+
+      {:error, _tokens} = error ->
+        error
+    end
+  end
+
   defp factor([token | _]), do: {:error, {:unexpected, token}}
 
   defp calculate(a, :plus, b), do: a + b
@@ -148,7 +166,7 @@ defmodule Parser do
   defp calculate(a, :div, b), do: round(a / b)
 end
 
-case Lexer.lex("1 + 2 * 5 * 2 +") do
+case Lexer.lex("(1 + 3 * 2") |> IO.inspect() do
   {:ok, tokens} ->
     parsed = Parser.parse(tokens)
     IO.inspect(parsed)
