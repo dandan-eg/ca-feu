@@ -6,6 +6,12 @@ defmodule Lexer do
     next_token(remaning)
   end
 
+  # Integer:
+  def next_token(<<"+", ch, _::binary>> = binary) when is_numeric(ch) do
+    {int, remaning} = integer(binary_slice(binary, 1..byte_size(binary)))
+    {{:integer, -int}, remaning}
+  end
+
   def next_token(<<"-", ch, _::binary>> = binary) when is_numeric(ch) do
     {int, remaning} = integer(binary_slice(binary, 1..byte_size(binary)))
     {{:integer, -int}, remaning}
@@ -16,11 +22,13 @@ defmodule Lexer do
     {{:integer, int}, remaning}
   end
 
+  # Operations:
   def next_token(<<"+", remaning::binary>>), do: {{:op, :plus}, remaning}
   def next_token(<<"-", remaning::binary>>), do: {{:op, :minus}, remaning}
   def next_token(<<"*", remaning::binary>>), do: {{:op, :mul}, remaning}
   def next_token(<<"/", remaning::binary>>), do: {{:op, :div}, remaning}
   def next_token(<<"%", remaning::binary>>), do: {{:op, :mod}, remaning}
+
   def next_token(<<>>), do: {:eof, <<>>}
 
   defp integer(binary), do: integer(binary, 0)
