@@ -63,28 +63,31 @@ defmodule Interpreter do
   end
 
   def term(raw) do
-  end
-
-  def factor(raw) do
     case Lexer.next_token(raw) do
-      {{:integer, base}, remaining} ->
-        do_factor(remaining, base)
+      {{:INTEGER, base}, remaining} ->
+        calculate_op(remaining, [:MUL, :DIV, :MOD], base)
 
       _ ->
         :error
     end
   end
 
-  def do_factor(raw, acc) do
+  def calculate_op(raw, operations, acc) do
     tokens = consume_n_tokens(raw, 2)
 
     case tokens do
       [
         {op, _},
-        {{:integer, int}, remaining}
-      ]
-      when op in [:MUL, :MOD, :DIV] ->
-        nil
+        {{:INTEGER, int}, remaining}
+      ] ->
+        if op in operations do
+          calculate_op(remaining, operations, calc(acc, op, int))
+        else
+          {:ok, acc, raw}
+        end
+
+      _ ->
+        {:ok, acc, raw}
     end
   end
 
@@ -93,7 +96,6 @@ defmodule Interpreter do
   defp calc(a, :MOD, b), do: rem(a, b)
   defp calc(a, :MUL, b), do: a * b
   defp calc(a, :DIV, b), do: round(a / b)
-  defp calc(_, nil, b), do: b
 
   def consume_n_tokens(raw, n) when n > 0 do
     consume_n_tokens(raw, n, 0, [])
@@ -107,4 +109,4 @@ defmodule Interpreter do
   end
 end
 
-Interpreter.factor("10 * 5") |> IO.inspect()
+Interpreter.term("10 * 5 + 1") |> IO.inspect()
