@@ -1,20 +1,10 @@
 defmodule Lexer do
-  @type token() :: {:INTEGER, integer()} | :PLUS | :MINUS | :MO | :DIV | :MUL
+  @type token() :: {:INTEGER, integer()} | :PLUS | :MINUS | :MOD | :DIV | :MUL | :ILLEGAL
 
   defguardp is_whitespace(ch) when ch in [?\r, ?\n, ?\s]
   defguardp is_numeric(ch) when ch in ?0..?9
 
   @spec next_token(binary()) :: {token(), binary()} | :error
-
-  def peek(binary) when is_binary(binary) do
-    case next_token(binary) do
-      {token, _remaining} ->
-        token
-
-      :error ->
-        :error
-    end
-  end
 
   def next_token(<<ch, remaning::binary>>) when is_whitespace(ch) do
     next_token(remaning)
@@ -43,9 +33,26 @@ defmodule Lexer do
   def next_token(<<"/", remaining::binary>>), do: {:DIV, remaining}
   def next_token(<<"%", remaining::binary>>), do: {:MOD, remaining}
 
-  def next_token(<<>>), do: {:eof, <<>>}
+  # End of file:
+  def next_token(<<>>), do: {:EOF, nil}
+  def next_token(nil), do: nil
 
-  def next_token(_invalid), do: :error
+  # Error:
+  def next_token(binary) do
+    whitespace? = fn ch -> is_whitespace(ch) end
+
+    invalid_indentifier = read_until(whitespace?, binary)
+    {{:ILLEGAL, invalid_indentifier}, nil}
+  end
+
+  defp read_until(predicate, binary), do: read_until(predicate, binary, <<>>)
+  defp read_until(_predicate, <<>>, acc), do: acc
+
+  defp read_until(predicate, <<ch, remaining::binary>>, acc) do
+    if predicate.(ch),
+      do: acc,
+      else: read_until(predicate, remaining, <<acc::binary, ch>>)
+  end
 
   defp integer(binary), do: integer(binary, 0)
 
@@ -55,58 +62,11 @@ defmodule Lexer do
   end
 
   defp integer(remaining, acc), do: {acc, remaining}
-end
 
-defmodule Interpreter do
-  def expr(raw) do
-    {:ok, remaining, base} = term(raw)
-  end
-
-  def term(raw) do
-    case Lexer.next_token(raw) do
-      {{:INTEGER, base}, remaining} ->
-        calculate_op(remaining, [:MUL, :DIV, :MOD], base)
-
-      _ ->
-        :error
-    end
-  end
-
-  def calculate_op(raw, operations, acc) do
-    tokens = consume_n_tokens(raw, 2)
-
-    case tokens do
-      [
-        {op, _},
-        {{:INTEGER, int}, remaining}
-      ] ->
-        if op in operations do
-          calculate_op(remaining, operations, calc(acc, op, int))
-        else
-          {:ok, acc, raw}
-        end
-
-      _ ->
-        {:ok, acc, raw}
-    end
-  end
-
-  defp calc(a, :PLUS, b), do: a + b
-  defp calc(a, :MINUS, b), do: a - b
-  defp calc(a, :MOD, b), do: rem(a, b)
-  defp calc(a, :MUL, b), do: a * b
-  defp calc(a, :DIV, b), do: round(a / b)
-
-  def consume_n_tokens(raw, n) when n > 0 do
-    consume_n_tokens(raw, n, 0, [])
-  end
-
-  defp consume_n_tokens(raw, n, n, tokens), do: Enum.reverse(tokens)
-
-  defp consume_n_tokens(raw, n, i, tokens) do
-    {token, remaining} = Lexer.next_token(raw)
-    consume_n_tokens(remaining, n, i + 1, [{token, remaining} | tokens])
+  def stream(binary) do
+    Stream.unfold(binary, &next_token/1)
   end
 end
 
-Interpreter.term("10 * 5 + 1") |> IO.inspect()
+Lexer.stream("1 + 2 + 3")
+|> Interpreter.interpret()
