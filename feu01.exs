@@ -1,5 +1,14 @@
 defmodule Lexer do
-  @type token() :: {:INTEGER, integer()} | :PLUS | :MINUS | :MOD | :DIV | :MUL | :ILLEGAL
+  @type token() ::
+          {:INTEGER, integer()}
+          | :PLUS
+          | :MINUS
+          | :MOD
+          | :DIV
+          | :MUL
+          | :ILLEGAL
+          | :LPAREN
+          | :RPAREN
 
   defguardp is_whitespace(ch) when ch in [?\r, ?\n, ?\s]
   defguardp is_numeric(ch) when ch in ?0..?9
@@ -26,6 +35,10 @@ defmodule Lexer do
     {{:INTEGER, int}, remaining}
   end
 
+  # Parenthesis:
+  def next_token(<<"(", remaining::binary>>), do: {:LPAREN, remaining}
+  def next_token(<<")", remaining::binary>>), do: {:RPAREN, remaining}
+
   # Operations:
   def next_token(<<"+", remaining::binary>>), do: {:PLUS, remaining}
   def next_token(<<"-", remaining::binary>>), do: {:MINUS, remaining}
@@ -38,20 +51,8 @@ defmodule Lexer do
   def next_token(nil), do: nil
 
   # Error:
-  def next_token(binary) do
-    whitespace? = fn ch -> is_whitespace(ch) end
-
-    invalid_indentifier = read_until(whitespace?, binary)
-    {{:ILLEGAL, invalid_indentifier}, nil}
-  end
-
-  defp read_until(predicate, binary), do: read_until(predicate, binary, <<>>)
-  defp read_until(_predicate, <<>>, acc), do: acc
-
-  defp read_until(predicate, <<ch, remaining::binary>>, acc) do
-    if predicate.(ch),
-      do: acc,
-      else: read_until(predicate, remaining, <<acc::binary, ch>>)
+  def next_token(_binary) do
+    {:ILLEGAL, nil}
   end
 
   defp integer(binary), do: integer(binary, 0)
@@ -62,11 +63,39 @@ defmodule Lexer do
   end
 
   defp integer(remaining, acc), do: {acc, remaining}
+end
 
-  def stream(binary) do
-    Stream.unfold(binary, &next_token/1)
+defmodule Parser do
+  def parse(fun, raw) when is_function(fun, 1) do
+    {token, remaining} = Lexer.next_token(raw)
+    {fun.(token), remaining}
+  end
+
+  def parse({prior_fun, :or, other_fun}, raw) do
+    case parse(prior_fun, raw) do
+      :error ->
+        parse(other_fun, raw)
+
+      ok ->
+        ok
+    end
+  end
+
+  def int({:INTEGER, int}), do: int
+  def int(_token), do: error()
+
+  def error(), do: :error
+end
+
+defmodule Interpreter do
+  def interpert() do
+  end
+
+  alias Parser, as: P
+
+  def factor(raw) do
+    P.parse(&P.int/1, raw)
   end
 end
 
-Lexer.stream("1 + 2 + 3")
-|> Interpreter.interpret()
+Interpreter.factor("+") |> IO.inspect()
